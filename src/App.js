@@ -6,12 +6,13 @@ import {
   Scene,
   sRGBEncoding,
   WebGLRenderer,
-  Color, MeshStandardMaterial, DoubleSide, SphereGeometry, Mesh, Group,
+  Color, MeshStandardMaterial, DoubleSide, SphereGeometry, Mesh, Group, CylinderGeometry,
 } from 'three';
 import AssetLoader from './AssetLoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
+import { TWEEN } from 'three/addons/libs/tween.module.min.js';
 
 class App {
   #gui;
@@ -38,24 +39,39 @@ class App {
       envTexture: 'QA_03_white.hdr',
       resolution: 28,
       isolation: 80,
-      speed: 0.1,
-      color: '#ffffff',
+      speed: 0.5,
+      color: '#ffff00',
       opacity: 0.3,
+      bounds: 1.0,
       cells: [
         {
           position: [0, 0, 0],
+          rotation: [0, 0, 0],
           nucleus: {
-            color: '#0000ff',
-            size: 0.08,
+            position: [0, 0, 0],
+            color: '#00ff00',
             opacity: 0.2,
+            size: 0.07,
+          },
+          centrosome: {
+            color: '#0000ff',
+            position: [0.17, 0, 0],
+            size: 0.04,
           },
         },
         {
           position: [0, 0, 0],
+          rotation: [0, 0, 0],
           nucleus: {
-            color: '#0000ff',
-            size: 0.08,
+            position: [0, 0, 0],
+            color: '#00ff00',
             opacity: 0.2,
+            size: 0.07,
+          },
+          centrosome: {
+            color: '#0000ff',
+            position: [0.17, 0, 0],
+            size: 0.04,
           },
         },
       ],
@@ -92,7 +108,7 @@ class App {
     this.#scene.backgroundBlurriness = 0.5;
 
     this.#camera = new PerspectiveCamera();
-    this.#camera.position.set(0, 0, 3);
+    this.#camera.position.set(0, 0, 1);
     this.#camera.lookAt(0, 0, 0);
 
     this.#orbit = new OrbitControls(this.#camera, this.#renderer.domElement);
@@ -118,9 +134,10 @@ class App {
 
     this.#orbit.update();
     this.#stats.update();
+    TWEEN.update(time);
 
     const calcTime = (time / 1000.0) * this.#config.speed;
-    this.#updateCells(calcTime);
+    this.#updateCells(/*calcTime*/ 1.0);
 
     if (this.#shouldRender) {
       // const prev = performance.now();
@@ -180,7 +197,12 @@ class App {
     cells.forEach((cell, index) => {
       const {
         nucleus,
+        centrosome,
       } = cell;
+
+      const cellObj = new Group();
+      cellObj.name = `cell${index}`;
+      cellsObj.add(cellObj);
 
       const nucleusGeometry = new SphereGeometry(1);
       const nucleusMaterial = new MeshStandardMaterial({
@@ -190,24 +212,36 @@ class App {
         displacementMap,
       });
 
-      const cellObj = new Group();
-      const cellMesh = new Mesh(nucleusGeometry, nucleusMaterial);
-      cellMesh.renderOrder = -1;
-      cellObj.add(cellMesh);
-      cellObj.name = `nucleus${index}`;
-      cellObj.scale.set(nucleus.size, nucleus.size, nucleus.size);
-      cellsObj.add(cellObj);
+      const nucleusMesh = new Mesh(nucleusGeometry, nucleusMaterial);
+      nucleusMesh.renderOrder = -1;
+      nucleusMesh.scale.set(nucleus.size, nucleus.size, nucleus.size);
+      nucleusMesh.name = `nucleus${index}`;
+      cellObj.add(nucleusMesh);
+
+      const centrosomeGeometry = new CylinderGeometry(0.1, 0.1, 1);
+      const centrosomeMaterial = new MeshStandardMaterial({
+        color: centrosome.color,
+      });
+      const centrosomeMesh = new Mesh(centrosomeGeometry, centrosomeMaterial);
+      const centrosomeObj = new Group();
+      centrosomeObj.scale.set(centrosome.size, centrosome.size, centrosome.size);
+      centrosomeObj.name = `centrosome${index}`;
+      centrosomeObj.add(centrosomeMesh);
+      const centrosomeMeshClone = centrosomeMesh.clone();
+      centrosomeMeshClone.rotateZ(Math.PI / 2.0);
+      centrosomeObj.add(centrosomeMeshClone);
+      cellObj.add(centrosomeObj);
     });
 
     return true;
   }
 
   #updateCells(time) {
-    const { cells } = this.#config;
+    const { cells, bounds } = this.#config;
 
-    const posX = Math.sin(time * Math.PI * 2.0) * 0.5;
-    cells[0].position = [posX, 0, 0];
-    cells[1].position = [-posX, 0, 0];
+    // const posX = Math.sin(time * Math.PI / 2.0) * bounds;
+    // cells[0].position = [posX, 0, 0];
+    // cells[1].position = [-posX, 0, 0];
 
     const {
       resolution,
@@ -228,18 +262,100 @@ class App {
     const strength = 1.2 / ( ( Math.sqrt(2) - 1 ) / 4 + 1 );
 
     cells.forEach((cell, index) => {
-      const { position } = cell;
-      this.#blobs.addBall(0.5 + position[0] / 2.0, 0.5 + position[1], 0.5 + position[2], strength, subtract);
+      const {
+        position,
+        rotation,
+        nucleus,
+        centrosome,
+      } = cell;
+      this.#blobs.addBall(
+        0.5 + position[0] / 2.0,
+        0.5 + position[1] / 2.0,
+        0.5 + position[2] / 2.0,
+        strength,
+        subtract,
+      );
 
-      const nucleusObj = this.#scene.getObjectByName(`nucleus${index}`);
-      nucleusObj.position.set(...position);
+      const cellObj = this.#scene.getObjectByName(`cell${index}`);
+      cellObj.position.set(...position);
+      cellObj.rotation.set(...rotation);
+
+      const nucleusMesh = this.#scene.getObjectByName(`nucleus${index}`);
+      nucleusMesh.material.opacity = nucleus.opacity;
+
+      const centrosomeObj = this.#scene.getObjectByName(`centrosome${index}`);
+      centrosomeObj.position.set(
+        centrosome.position[0],
+        centrosome.position[1],
+        centrosome.position[2],
+      );
     });
 
     this.#blobs.update();
   }
 
-  #setupGUI() {
+  async #playInterphase() {
+    return new Promise((resolve) => {
+      const { cells } = this.#config;
+      const obj = {
+        rotation: 0,
+        nucleusOpacity: 0.2,
+      };
+      new TWEEN.Tween(obj)
+        .to({
+          rotation: Math.PI,
+          nucleusOpacity: 0,
+        }, 2000)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .onUpdate(() => {
+          cells[1].rotation = [0, 0, obj.rotation];
+          cells[0].nucleus.opacity = obj.nucleusOpacity;
+          cells[1].nucleus.opacity = obj.nucleusOpacity;
+        })
+        .onComplete(() => {
+          resolve(true);
+        })
+        .start();
+    });
+  }
 
+  async #playTelophase() {
+    return new Promise((resolve) => {
+      const { cells } = this.#config;
+      const obj = {
+        position: 0,
+        nucleusOpacity: 0,
+      };
+      new TWEEN.Tween(obj)
+        .to({
+          position: 0.3,
+          nucleusOpacity: 0.1,
+        }, 2000)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .onUpdate(() => {
+          cells[0].position = [obj.position, 0, 0];
+          cells[1].position = [-obj.position, 0, 0];
+          cells[0].nucleus.opacity = obj.nucleusOpacity;
+          cells[1].nucleus.opacity = obj.nucleusOpacity;
+        })
+        .onComplete(() => {
+          resolve(true);
+        })
+        .start();
+    });
+  }
+
+  #setupGUI() {
+    const phasesFolder = this.#gui.addFolder('Phases');
+
+    const phasesConfig = {
+      interphase: () => { this.#playInterphase(); },
+      telophase: () => { this.#playTelophase(); },
+    };
+
+    Object.keys(phasesConfig).forEach((phase) => {
+      phasesFolder.add(phasesConfig, phase);
+    });
   }
 }
 
