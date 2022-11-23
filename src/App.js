@@ -51,7 +51,7 @@ const randomColorStr = () => {
   return `#${randColor.toUpperCase()}`
 };
 
-const BASE = '';
+const BASE = '/mitosis';
 
 class App {
   #gui;
