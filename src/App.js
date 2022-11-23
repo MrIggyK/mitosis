@@ -6,13 +6,50 @@ import {
   Scene,
   sRGBEncoding,
   WebGLRenderer,
-  Color, MeshStandardMaterial, DoubleSide, SphereGeometry, Mesh, Group, CylinderGeometry,
+  Color,
+  MeshStandardMaterial,
+  DoubleSide,
+  SphereGeometry,
+  Mesh,
+  Group,
+  CylinderGeometry,
+  Vector3,
+  CubicBezierCurve3,
+  BufferGeometry, LineBasicMaterial,
 } from 'three';
 import AssetLoader from './AssetLoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 import { TWEEN } from 'three/addons/libs/tween.module.min.js';
+
+const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
+const randomChromosomePos = (bounds) => ((-0.5 + Math.random()) * bounds * 2.0);
+
+const getv1 = (first, second) => {
+  return [
+    (first[0] + second[0]) / 2.0,
+    (first[1] + second[1]) / 2.0,
+    (first[2] + second[2]) / 2.0,
+  ];
+};
+
+const getv2 = (first, second) => {
+  return [
+    (first[0] + second[0]) / 2.0,
+    (first[1] + second[1]) / 2.0,
+    (first[2] + second[2]) / 2.0,
+  ];
+};
+
+const randomColorStr = () => {
+  let maxVal = 0xFFFFFF; // 16777215
+  let randomNumber = Math.random() * maxVal;
+  randomNumber = Math.floor(randomNumber);
+  randomNumber = randomNumber.toString(16);
+  let randColor = randomNumber.padStart(6, 0);
+  return `#${randColor.toUpperCase()}`
+};
 
 class App {
   #gui;
@@ -29,8 +66,8 @@ class App {
   #height = 10;
   #shouldRender = true;
   #prevTime = 0;
-
   #blobs;
+  #activeTweens = [];
 
   constructor(containerID) {
     this.#gui = new GUI();
@@ -42,40 +79,11 @@ class App {
       speed: 0.5,
       color: '#ffff00',
       opacity: 0.3,
-      bounds: 1.0,
-      cells: [
-        {
-          position: [0, 0, 0],
-          rotation: [0, 0, 0],
-          nucleus: {
-            position: [0, 0, 0],
-            color: '#00ff00',
-            opacity: 0.2,
-            size: 0.07,
-          },
-          centrosome: {
-            color: '#0000ff',
-            position: [0.17, 0, 0],
-            size: 0.04,
-          },
-        },
-        {
-          position: [0, 0, 0],
-          rotation: [0, 0, 0],
-          nucleus: {
-            position: [0, 0, 0],
-            color: '#00ff00',
-            opacity: 0.2,
-            size: 0.07,
-          },
-          centrosome: {
-            color: '#0000ff',
-            position: [0.17, 0, 0],
-            size: 0.04,
-          },
-        },
-      ],
+      cells: [],
+      phase: 'startup',
     };
+
+    this.#setupCellsConfig();
 
     console.log(`three.js r${REVISION}`);
     this.#container = document.querySelector(containerID);
@@ -113,6 +121,49 @@ class App {
 
     this.#orbit = new OrbitControls(this.#camera, this.#renderer.domElement);
     this.#orbit.addEventListener('change', () => { this.#shouldRender = true; });
+  }
+
+  #setupCellsConfig() {
+    const nucleusSize = 0.08;
+
+    const cellTemplate = {
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      nucleus: {
+        position: [0, 0, 0],
+        color: '#00ff00',
+        opacity: 0.2,
+        size: nucleusSize,
+      },
+      centrosome: {
+        color: '#0000ff',
+        position: [0, -0.2, 0],
+        size: 0.04,
+      },
+    };
+
+    const cells = [deepCopy(cellTemplate), deepCopy(cellTemplate)];
+    this.#config.cells = cells;
+
+    const numChromosomes = 4;
+
+    let chromosomes = [];
+    for (let i = 0; i < numChromosomes; i += 1) {
+      const color = randomColorStr();
+      const position = [
+        (-0.5 + Math.random()) * nucleusSize * 2.0,
+        (-0.5 + Math.random()) * nucleusSize * 2.0,
+        (-0.5 + Math.random()) * nucleusSize * 2.0,
+      ];
+      const rotation = [
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+      ];
+      const size = 0.05;
+      chromosomes = [...chromosomes, { color, position, rotation, size }];
+    }
+    this.#config.chromosomes = chromosomes;
   }
 
   async initScene() {
@@ -175,6 +226,7 @@ class App {
       color,
       opacity,
       cells,
+      chromosomes,
     } = this.#config;
     const material = new MeshStandardMaterial({
       color,
@@ -233,11 +285,44 @@ class App {
       cellObj.add(centrosomeObj);
     });
 
+    const chromosomesObj = new Group();
+    chromosomesObj.name = `chromosomes`;
+    this.#scene.add(chromosomesObj);
+
+    const chromosomesObj0 = new Group();
+    chromosomesObj0.name = `chromosomes0`;
+    chromosomesObj.add(chromosomesObj0);
+
+    const chromosomesObj1 = new Group();
+    chromosomesObj1.name = `chromosomes1`;
+    chromosomesObj.add(chromosomesObj1);
+
+    const chromosomeGeometry = new CylinderGeometry(0.05, 0.05, 1)
+    chromosomes.forEach((chromosome, index) => {
+      const chromosomeMaterial = new MeshStandardMaterial({
+        color: chromosome.color,
+      });
+      const mesh0 = new Mesh(chromosomeGeometry, chromosomeMaterial);
+      mesh0.rotation.set(0, 0, Math.PI / 10.0);
+      mesh0.scale.set(chromosome.size, chromosome.size, chromosome.size);
+      const chromosomeObj0 = new Group();
+      chromosomeObj0.name = `chromosome0${index}`;
+      chromosomeObj0.add(mesh0);
+      chromosomesObj0.add(chromosomeObj0);
+      const mesh1 = new Mesh(chromosomeGeometry, chromosomeMaterial);
+      mesh1.rotation.set(0, 0, -Math.PI / 10.0);
+      mesh1.scale.set(chromosome.size, chromosome.size, chromosome.size);
+      const chromosomeObj1 = new Group();
+      chromosomeObj1.name = `chromosome1${index}`;
+      chromosomeObj1.add(mesh1);
+      chromosomesObj1.add(chromosomeObj1);
+    });
+
     return true;
   }
 
   #updateCells(time) {
-    const { cells, bounds } = this.#config;
+    const { cells, chromosomes } = this.#config;
 
     // const posX = Math.sin(time * Math.PI / 2.0) * bounds;
     // cells[0].position = [posX, 0, 0];
@@ -291,66 +376,192 @@ class App {
       );
     });
 
+    const chromosomesObj = this.#scene.getObjectByName(`chromosomes`);
+    const [chromosomesObj0, chromosomesObj1] = chromosomesObj.children;
+    chromosomes.forEach((chromosome, index) => {
+      const chr0 = chromosomesObj0.getObjectByName(`chromosome0${index}`);
+      const position0 = [
+        chromosome.position[0] + cells[0].position[0],
+        chromosome.position[1] + cells[0].position[1],
+        chromosome.position[2] + cells[0].position[2],
+      ];
+      chr0.position.set(...position0);
+      chr0.rotation.set(...chromosome.rotation);
+
+      const chr1 = chromosomesObj1.getObjectByName(`chromosome1${index}`);
+      const position1 = [
+        chromosome.position[0] + cells[1].position[0],
+        chromosome.position[1] + cells[1].position[1],
+        chromosome.position[2] + cells[1].position[2],
+      ];
+      chr1.position.set(...position1);
+      chr1.rotation.set(...chromosome.rotation);
+    });
+
     this.#blobs.update();
   }
 
-  async #playInterphase() {
-    return new Promise((resolve) => {
-      const { cells } = this.#config;
-      const obj = {
-        rotation: 0,
-        nucleusOpacity: 0.2,
-      };
-      new TWEEN.Tween(obj)
-        .to({
-          rotation: Math.PI,
-          nucleusOpacity: 0,
-        }, 2000)
-        .easing(TWEEN.Easing.Quadratic.InOut)
-        .onUpdate(() => {
-          cells[1].rotation = [0, 0, obj.rotation];
-          cells[0].nucleus.opacity = obj.nucleusOpacity;
-          cells[1].nucleus.opacity = obj.nucleusOpacity;
-        })
-        .onComplete(() => {
-          resolve(true);
-        })
-        .start();
-    });
+  #playInterphase() {
+    const { cells, chromosomes } = this.#config;
+    const obj = {
+      rotation: 0,
+    };
+
+    const tween0 = new TWEEN.Tween(obj)
+      .to({
+        rotation: Math.PI / 6.0,
+      }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].rotation = [0, 0, obj.rotation];
+        cells[1].rotation = [0, 0, -obj.rotation];
+      })
+      .onComplete(() => {})
+      .start();
+
+    return [tween0];
   }
 
-  async #playTelophase() {
-    return new Promise((resolve) => {
-      const { cells } = this.#config;
+  #playProphase() {
+    const { cells } = this.#config;
+    const obj = {
+      rotation: Math.PI / 6.0,
+    };
+
+    const tween0 = new TWEEN.Tween(obj)
+      .to({
+        rotation: Math.PI / 2.0,
+      }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].rotation = [0, 0, obj.rotation];
+        cells[1].rotation = [0, 0, -obj.rotation];
+      })
+      .onComplete(() => {})
+      .start();
+
+    return [tween0];
+  }
+
+  #playMetaphase() {
+    const { cells, chromosomes } = this.#config;
+
+    let tweens = [];
+    chromosomes.forEach((chromosome, index) => {
       const obj = {
-        position: 0,
-        nucleusOpacity: 0,
+        px: chromosome.position[0],
+        py: chromosome.position[1],
+        pz: chromosome.position[2],
+        rx: chromosome.rotation[0],
+        ry: chromosome.rotation[1],
+        rz: chromosome.rotation[2],
       };
-      new TWEEN.Tween(obj)
+      const { size } = cells[0].nucleus;
+      const tween = new TWEEN.Tween(obj)
         .to({
-          position: 0.3,
-          nucleusOpacity: 0.1,
+          px: 0,
+          py: (-0.5 + (index / (chromosomes.length - 1))) * size * 2.0,
+          pz: 0,
+          rx: 0,
+          ry: 0,
+          rz: 0,
         }, 2000)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onUpdate(() => {
-          cells[0].position = [obj.position, 0, 0];
-          cells[1].position = [-obj.position, 0, 0];
-          cells[0].nucleus.opacity = obj.nucleusOpacity;
-          cells[1].nucleus.opacity = obj.nucleusOpacity;
+          chromosome.position = [obj.px, obj.py, obj.pz];
+          chromosome.rotation = [obj.rx, obj.ry, obj.rz];
         })
-        .onComplete(() => {
-          resolve(true);
-        })
+        .onComplete(() => {})
         .start();
+      tweens = [...tweens, tween];
     });
+
+    return tweens;
+  }
+
+  #playAnaphase() {
+    const { cells } = this.#config;
+    const obj = {
+      position: 0,
+    };
+    const tween0 = new TWEEN.Tween(obj)
+      .to({
+        position: 0.1,
+      }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].position = [obj.position, 0, 0];
+        cells[1].position = [-obj.position, 0, 0];
+      })
+      .onComplete(() => {})
+      .start();
+
+    return [tween0];
+  }
+
+  #playTelophase() {
+    const { cells } = this.#config;
+    const obj = {
+      position: 0.1,
+    };
+    const tween0 = new TWEEN.Tween(obj)
+      .to({
+        position: 0.3,
+      }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].position = [obj.position, 0, 0];
+        cells[1].position = [-obj.position, 0, 0];
+      })
+      .onComplete(() => {})
+      .start();
+
+    return [tween0];
+  }
+
+  #playStartup() {
+    return [];
+  }
+
+  #playPhase(name) {
+    this.#activeTweens.forEach((tween) => {
+      tween.stop();
+    });
+
+    let phase;
+    switch (name) {
+      case 'interphase':
+        phase = this.#playInterphase();
+        break;
+      case 'prophase':
+        phase = this.#playProphase();
+        break;
+      case 'metaphase':
+        phase = this.#playMetaphase();
+        break;
+      case 'anaphase':
+        phase = this.#playAnaphase();
+        break;
+      case 'telophase':
+        phase = this.#playTelophase();
+        break;
+      default:
+        phase = this.#playStartup();
+        break;
+    }
+
+    this.#activeTweens = phase;
   }
 
   #setupGUI() {
     const phasesFolder = this.#gui.addFolder('Phases');
 
     const phasesConfig = {
-      interphase: () => { this.#playInterphase(); },
-      telophase: () => { this.#playTelophase(); },
+      interphase: () => { this.#playPhase('interphase'); },
+      prophase: () => { this.#playPhase('prophase'); },
+      metaphase: () => { this.#playPhase('metaphase'); },
+      anaphase: () => { this.#playPhase('anaphase'); },
+      telophase: () => { this.#playPhase('telophase'); },
     };
 
     Object.keys(phasesConfig).forEach((phase) => {
