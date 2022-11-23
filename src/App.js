@@ -51,6 +51,8 @@ const randomColorStr = () => {
   return `#${randColor.toUpperCase()}`
 };
 
+const BASE = '/mitosis';
+
 class App {
   #gui;
   #config;
@@ -167,7 +169,7 @@ class App {
   }
 
   async initScene() {
-    const envTexture = await this.#assetLoader.load(`/assets/textures/${this.#config.envTexture}`);
+    const envTexture = await this.#assetLoader.load(`${BASE}/assets/textures/${this.#config.envTexture}`);
     const envRT = this.#pmremGenerator.fromEquirectangular(envTexture);
     this.#scene.environment = envRT.texture;
     this.#scene.background = envRT.texture;
@@ -219,7 +221,7 @@ class App {
   }
 
   async #initCells() {
-    const displacementMap = await this.#assetLoader.load('/assets/textures/displacement.jpg');
+    const displacementMap = await this.#assetLoader.load(`${BASE}/assets/textures/displacement.jpg`);
 
     const {
       resolution,
