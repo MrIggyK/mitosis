@@ -104,11 +104,11 @@ class App {
     this.#stats.dom.style.position = 'static';
     [].forEach.call(this.#stats.dom.children, child => (child.style.display = ''));
 
-    const perfFolder = this.#gui.addFolder('Performance');
-    const perfLi = document.createElement('li');
-    perfLi.appendChild(this.#stats.domElement);
-    perfLi.classList.add('gui-stats');
-    perfFolder.domElement.appendChild(perfLi);
+    // const perfFolder = this.#gui.addFolder('Performance');
+    // const perfLi = document.createElement('li');
+    // perfLi.appendChild(this.#stats.domElement);
+    // perfLi.classList.add('gui-stats');
+    // perfFolder.domElement.appendChild(perfLi);
 
     this.#pmremGenerator = new PMREMGenerator(this.#renderer);
     this.#pmremGenerator.compileEquirectangularShader();
