@@ -70,6 +70,8 @@ const randomColorStr = () => {
   return `#${randColor.toUpperCase()}`;
 };
 
+const BANNER_TEXT = 'Mitoza - Viktor Knežević, VIII beogradska gimnazija';
+
 const BASE = '/mitosis';
 
 class App {
@@ -153,6 +155,19 @@ class App {
 
     this.#orbit = new OrbitControls(this.#camera, this.#renderer.domElement);
     this.#orbit.addEventListener('change', () => { this.#shouldRender = true; });
+  }
+
+  #resetConfig() {
+    if (this.#playing) {
+      return;
+    }
+
+    const banner = document.querySelector('#banner');
+    banner.innerHTML = BANNER_TEXT;
+
+    this.#setupCellsConfig();
+    this.#playing = false;
+    this.#nextPhase = 'interphase';
   }
 
   #setupCellsConfig() {
@@ -815,16 +830,7 @@ class App {
 
     const phasesConfig = {
       'Pokreni': () => { this.#playPhase(this.#nextPhase); },
-      'Resetuj': () => {
-        if (this.#playing) {
-          return;
-        }
-        const banner = document.querySelector('#banner');
-        banner.innerHTML = '';
-        this.#setupCellsConfig();
-        this.#playing = false;
-        this.#nextPhase = 'interphase';
-      },
+      'Resetuj': () => { this.#resetConfig(); },
       // [`${PHASE_DISPLAY_NAMES['interphase']}`]: () => { this.#playPhase('interphase'); },
       // [`${PHASE_DISPLAY_NAMES['prophase']}`]: () => { this.#playPhase('prophase'); },
       // [`${PHASE_DISPLAY_NAMES['metaphase']}`]: () => { this.#playPhase('metaphase'); },
