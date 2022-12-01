@@ -12,7 +12,7 @@ import {
   SphereGeometry,
   Mesh,
   Group,
-  CylinderGeometry,
+  CylinderGeometry, LineBasicMaterial, CatmullRomCurve3, Vector3, Line, BufferGeometry,
 } from 'three';
 import AssetLoader from './AssetLoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
@@ -138,6 +138,7 @@ class App {
         color: '#0000ff',
         position: [0, -0.2, 0],
         size: 0.04,
+        spindlesLength: 0,
       },
     };
 
@@ -303,6 +304,18 @@ class App {
     chromosomesObj1.name = `chromosomes1`;
     chromosomesObj.add(chromosomesObj1);
 
+    const spindlesObj = new Group();
+    spindlesObj.name = 'spindles';
+    this.#scene.add(spindlesObj);
+
+    const spindlesObj0 = new Group();
+    spindlesObj0.name = 'spindles0';
+    spindlesObj.add(spindlesObj0);
+
+    const spindlesObj1 = new Group();
+    spindlesObj1.name = 'spindles1';
+    spindlesObj.add(spindlesObj1);
+
     const chromosomeGeometry = new CylinderGeometry(0.05, 0.05, 1)
     chromosomes.forEach((chromosome, index) => {
       const chromosomeMaterial = new MeshStandardMaterial({
@@ -323,6 +336,31 @@ class App {
       chromosomeObj1.name = `chromosome1${index}`;
       chromosomeObj1.add(mesh1);
       chromosomesObj1.add(chromosomeObj1);
+
+      const curveMaterial = new LineBasicMaterial({ color: chromosome.color });
+      const initialPoints0 = [
+        [0, 0, 0],
+        [1, 1, 1],
+      ];
+      const curve0 = new CatmullRomCurve3(
+        initialPoints0.map((point) => new Vector3(...point)),
+      );
+      const curve0Geometry = new BufferGeometry().setFromPoints(curve0);
+      const line0 = new Line(curve0Geometry, curveMaterial);
+      line0.name = `spindle0${index}`;
+      spindlesObj0.add(line0);
+
+      const initialPoints1 = [
+        [0, 0, 0],
+        [1, 1, 1],
+      ];
+      const curve1 = new CatmullRomCurve3(
+        initialPoints1.map((point) => new Vector3(...point)),
+      );
+      const curve1Geometry = new BufferGeometry().setFromPoints(curve1);
+      const line1 = new Line(curve1Geometry, curveMaterial);
+      line1.name = `spindle1${index}`;
+      spindlesObj1.add(line1);
     });
 
     return true;
@@ -384,7 +422,10 @@ class App {
     });
 
     const chromosomesObj = this.#scene.getObjectByName(`chromosomes`);
+    const spindlesObj = this.#scene.getObjectByName('spindles');
+
     const [chromosomesObj0, chromosomesObj1] = chromosomesObj.children;
+    const [spindlesObj0, spindlesObj1] = spindlesObj.children;
     chromosomes.forEach((chromosome, index) => {
       const chr0 = chromosomesObj0.getObjectByName(`chromosome0${index}`);
       const position0 = [
@@ -394,6 +435,16 @@ class App {
       ];
       chr0.position.set(...position0);
       chr0.rotation.set(...chromosome.rotation);
+
+      const sp0 = spindlesObj0.getObjectByName(`spindle0${index}`);
+      const centrosome0Obj = this.#scene.getObjectByName('centrosome0');
+      const centrosomeWorldPos0 = new Vector3();
+      centrosome0Obj.getWorldPosition(centrosomeWorldPos0);
+      const points0 = [
+        [...centrosomeWorldPos0],
+        [...position0],
+      ];
+      sp0.geometry.setFromPoints(points0.map((pt) => (new Vector3(...pt))));
 
       const chr1 = chromosomesObj1.getObjectByName(`chromosome1${index}`);
       const position1 = [
