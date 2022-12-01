@@ -487,24 +487,6 @@ class App {
   }
 
   #playAnaphase() {
-    // const { cells } = this.#config;
-    // const obj = {
-    //   position: 0,
-    // };
-    // const tween0 = new TWEEN.Tween(obj)
-    //   .to({
-    //     position: 0.1,
-    //   }, 2000)
-    //   .easing(TWEEN.Easing.Quadratic.InOut)
-    //   .onUpdate(() => {
-    //     cells[0].position = [obj.position, 0, 0];
-    //     cells[1].position = [-obj.position, 0, 0];
-    //   })
-    //   .onComplete(() => {})
-    //   .start();
-    //
-    // return [tween0];
-
     const { cells, chromosomes } = this.#config;
 
     let tweens = [];
@@ -538,16 +520,27 @@ class App {
     const obj = {
       position: 0,
     };
-    const tween0 = new TWEEN.Tween(obj)
+    const tween1 = new TWEEN.Tween(obj)
       .to({
         position: 0.3,
-      }, 2000)
-      .easing(TWEEN.Easing.Quadratic.InOut)
+      }, 4000)
+      .easing(TWEEN.Easing.Quadratic.Out)
       .onUpdate(() => {
         cells[0].position = [obj.position, 0, 0];
         cells[1].position = [-obj.position, 0, 0];
       })
-      .onComplete(() => {})
+      .onComplete(() => {});
+
+    const tween0 = new TWEEN.Tween(obj)
+      .to({
+        position: 0.1,
+      }, 2000)
+      .easing(TWEEN.Easing.Quadratic.In)
+      .onUpdate(() => {
+        cells[0].position = [obj.position, 0, 0];
+        cells[1].position = [-obj.position, 0, 0];
+      })
+      .onComplete(() => { tween1.start(); })
       .start();
 
     // return [tween0];
@@ -577,7 +570,7 @@ class App {
           ox: 0,
           oy: 0,
           oz: 0,
-        }, 2000)
+        }, 6000)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onUpdate(() => {
           chromosome.position = [obj.px, obj.py, obj.pz];
