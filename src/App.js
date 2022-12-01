@@ -12,7 +12,12 @@ import {
   SphereGeometry,
   Mesh,
   Group,
-  CylinderGeometry, LineBasicMaterial, CatmullRomCurve3, Vector3, Line, BufferGeometry,
+  CylinderGeometry,
+  LineBasicMaterial,
+  CatmullRomCurve3,
+  Vector3,
+  Line,
+  BufferGeometry,
 } from 'three';
 import AssetLoader from './AssetLoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
@@ -72,6 +77,13 @@ class App {
     this.#gui = new GUI();
 
     this.#config = {
+      phaseTimes: {
+        interphase: 2.0,
+        prophase: 2.0,
+        metaphase: 2.0,
+        anaphase: 2.0,
+        telophase: 2.0,
+      },
       envTexture: 'QA_03_white.hdr',
       resolution: 28,
       isolation: 80,
@@ -128,6 +140,7 @@ class App {
     const cellTemplate = {
       position: [0, 0, 0],
       rotation: [0, 0, 0],
+      spindlesLength: 0,
       nucleus: {
         position: [0, 0, 0],
         color: '#00ff00',
@@ -138,7 +151,6 @@ class App {
         color: '#0000ff',
         position: [0, -0.2, 0],
         size: 0.04,
-        spindlesLength: 0,
       },
     };
 
@@ -338,6 +350,7 @@ class App {
       chromosomesObj1.add(chromosomeObj1);
 
       const curveMaterial = new LineBasicMaterial({ color: chromosome.color });
+      curveMaterial.color.multiplyScalar(0.5);
       const initialPoints0 = [
         [0, 0, 0],
         [1, 1, 1],
@@ -440,9 +453,13 @@ class App {
       const centrosome0Obj = this.#scene.getObjectByName('centrosome0');
       const centrosomeWorldPos0 = new Vector3();
       centrosome0Obj.getWorldPosition(centrosomeWorldPos0);
+
+      const endPos0 = centrosomeWorldPos0.clone();
+      endPos0.lerp(new Vector3(...position0), cells[0].spindlesLength);
+
       const points0 = [
-        [...centrosomeWorldPos0],
-        [...position0],
+        [centrosomeWorldPos0.x, centrosomeWorldPos0.y, centrosomeWorldPos0.z],
+        [endPos0.x, endPos0.y, endPos0.z],
       ];
       sp0.geometry.setFromPoints(points0.map((pt) => (new Vector3(...pt))));
 
@@ -454,13 +471,28 @@ class App {
       ];
       chr1.position.set(...position1);
       chr1.rotation.set(...chromosome.rotation);
+
+      const sp1 = spindlesObj1.getObjectByName(`spindle1${index}`);
+      const centrosome1Obj = this.#scene.getObjectByName('centrosome1');
+      const centrosomeWorldPos1 = new Vector3();
+      centrosome1Obj.getWorldPosition(centrosomeWorldPos1);
+
+      const endPos1 = centrosomeWorldPos1.clone();
+      endPos1.lerp(new Vector3(...position1), cells[1].spindlesLength);
+
+      const points1 = [
+        [...centrosomeWorldPos1],
+        [endPos1.x, endPos1.y, endPos1.z],
+      ];
+      sp1.geometry.setFromPoints(points1.map((pt) => (new Vector3(...pt))));
     });
 
     this.#blobs.update();
   }
 
   #playInterphase() {
-    const { cells, chromosomes } = this.#config;
+    const { cells, chromosomes, phaseTimes } = this.#config;
+    const time = Math.floor(phaseTimes.interphase * 1000);
     const obj = {
       rotation: 0,
     };
@@ -468,7 +500,7 @@ class App {
     const tween0 = new TWEEN.Tween(obj)
       .to({
         rotation: Math.PI / 6.0,
-      }, 2000)
+      }, time)
       .easing(TWEEN.Easing.Quadratic.InOut)
       .onUpdate(() => {
         cells[0].rotation = [0, 0, obj.rotation];
@@ -481,15 +513,17 @@ class App {
   }
 
   #playProphase() {
-    const { cells } = this.#config;
+    const { cells, phaseTimes } = this.#config;
+    const time = Math.floor(phaseTimes.prophase * 1000);
     const obj = {
       rotation: Math.PI / 6.0,
+      spindlesLength: 0,
     };
 
     const tween0 = new TWEEN.Tween(obj)
       .to({
         rotation: Math.PI / 2.0,
-      }, 2000)
+      }, time)
       .easing(TWEEN.Easing.Quadratic.InOut)
       .onUpdate(() => {
         cells[0].rotation = [0, 0, obj.rotation];
@@ -498,13 +532,39 @@ class App {
       .onComplete(() => {})
       .start();
 
-    return [tween0];
+    const tween1 = new TWEEN.Tween(obj)
+      .to({
+        spindlesLength: 0.5,
+      }, time)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].spindlesLength = obj.spindlesLength;
+        cells[1].spindlesLength = obj.spindlesLength;
+      })
+      .onComplete(() => {})
+      .start();
+
+    return [tween0, tween1];
   }
 
   #playMetaphase() {
-    const { cells, chromosomes } = this.#config;
+    const { cells, chromosomes, phaseTimes } = this.#config;
+    const time = Math.floor(phaseTimes.metaphase * 1000);
 
-    let tweens = [];
+    const obj0 = { spindlesLength: 0.5 };
+    const tween0 = new TWEEN.Tween(obj0)
+      .to({
+        spindlesLength: 1.0,
+      }, time)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].spindlesLength = obj0.spindlesLength;
+        cells[1].spindlesLength = obj0.spindlesLength;
+      })
+      .onComplete(() => {})
+      .start();
+
+    let tweens = [tween0];
     chromosomes.forEach((chromosome, index) => {
       const obj = {
         px: chromosome.position[0],
@@ -523,7 +583,7 @@ class App {
           rx: 0,
           ry: 0,
           rz: 0,
-        }, 2000)
+        }, time)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onUpdate(() => {
           chromosome.position = [obj.px, obj.py, obj.pz];
@@ -538,7 +598,8 @@ class App {
   }
 
   #playAnaphase() {
-    const { cells, chromosomes } = this.#config;
+    const { cells, chromosomes, phaseTimes } = this.#config;
+    const time = Math.floor(phaseTimes.anaphase * 1000);
 
     let tweens = [];
     chromosomes.forEach((chromosome, index) => {
@@ -553,7 +614,7 @@ class App {
           ox: 0.05,
           oy: 0,
           oz: 0,
-        }, 2000)
+        }, time)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onUpdate(() => {
           chromosome.offset = [obj.ox, obj.oy, obj.oz];
@@ -567,14 +628,19 @@ class App {
   }
 
   #playTelophase() {
-    const { cells, chromosomes } = this.#config;
+    const { cells, chromosomes, phaseTimes } = this.#config;
+    const time = Math.floor(phaseTimes.metaphase * 1000);
     const obj = {
       position: 0,
     };
+
+    cells[0].spindlesLength = 0;
+    cells[1].spindlesLength = 0;
+
     const tween1 = new TWEEN.Tween(obj)
       .to({
         position: 0.3,
-      }, 4000)
+      }, time)
       .easing(TWEEN.Easing.Quadratic.Out)
       .onUpdate(() => {
         cells[0].position = [obj.position, 0, 0];
@@ -585,7 +651,7 @@ class App {
     const tween0 = new TWEEN.Tween(obj)
       .to({
         position: 0.1,
-      }, 2000)
+      }, time)
       .easing(TWEEN.Easing.Quadratic.In)
       .onUpdate(() => {
         cells[0].position = [obj.position, 0, 0];
@@ -621,7 +687,7 @@ class App {
           ox: 0,
           oy: 0,
           oz: 0,
-        }, 6000)
+        }, time * 2)
         .easing(TWEEN.Easing.Quadratic.InOut)
         .onUpdate(() => {
           chromosome.position = [obj.px, obj.py, obj.pz];
@@ -632,6 +698,8 @@ class App {
         .start();
       tweens = [...tweens, tween];
     });
+
+    return tweens;
   }
 
   #playStartup() {
