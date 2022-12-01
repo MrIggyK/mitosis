@@ -819,6 +819,8 @@ class App {
         if (this.#playing) {
           return;
         }
+        const banner = document.querySelector('#banner');
+        banner.innerHTML = '';
         this.#setupCellsConfig();
         this.#playing = false;
         this.#nextPhase = 'interphase';
