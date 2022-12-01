@@ -88,8 +88,8 @@ class App {
       resolution: 28,
       isolation: 80,
       speed: 0.5,
-      color: '#ffff00',
-      opacity: 0.3,
+      color: '#d9b99b',
+      opacity: 0.5,
       cells: [],
       phase: 'startup',
     };
@@ -250,8 +250,8 @@ class App {
     const material = new MeshStandardMaterial({
       color,
       opacity,
-      roughness: 0.2,
-      metalness: 0.8,
+      roughness: 0.4,
+      metalness: 0.7,
       side: DoubleSide,
       transparent: true,
     });
@@ -281,6 +281,8 @@ class App {
         opacity: nucleus.opacity,
         transparent: true,
         displacementMap,
+        roughness: 0.5,
+        metalness: 0.6,
       });
 
       const nucleusMesh = new Mesh(nucleusGeometry, nucleusMaterial);
@@ -425,6 +427,7 @@ class App {
 
       const nucleusMesh = this.#scene.getObjectByName(`nucleus${index}`);
       nucleusMesh.material.opacity = nucleus.opacity;
+      nucleusMesh.visible = (nucleusMesh.material.opacity !== 0);
 
       const centrosomeObj = this.#scene.getObjectByName(`centrosome${index}`);
       centrosomeObj.position.set(
@@ -518,6 +521,7 @@ class App {
     const obj = {
       rotation: Math.PI / 6.0,
       spindlesLength: 0,
+      nucleusOpacity: cells[0].nucleus.opacity,
     };
 
     const tween0 = new TWEEN.Tween(obj)
@@ -544,7 +548,19 @@ class App {
       .onComplete(() => {})
       .start();
 
-    return [tween0, tween1];
+    const tween2 = new TWEEN.Tween(obj)
+      .to({
+        nucleusOpacity: 0.0,
+      }, time)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].nucleus.opacity = obj.nucleusOpacity;
+        cells[1].nucleus.opacity = obj.nucleusOpacity;
+      })
+      .onComplete(() => {})
+      .start();
+
+    return [tween0, tween1, tween2];
   }
 
   #playMetaphase() {
@@ -632,6 +648,7 @@ class App {
     const time = Math.floor(phaseTimes.metaphase * 1000);
     const obj = {
       position: 0,
+      nucleusOpacity: cells[0].nucleus.opacity,
     };
 
     cells[0].spindlesLength = 0;
@@ -660,9 +677,21 @@ class App {
       .onComplete(() => { tween1.start(); })
       .start();
 
+    const tween2 = new TWEEN.Tween(obj)
+      .to({
+        nucleusOpacity: 0.3,
+      }, time)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .onUpdate(() => {
+        cells[0].nucleus.opacity = obj.nucleusOpacity;
+        cells[1].nucleus.opacity = obj.nucleusOpacity;
+      })
+      .onComplete(() => {})
+      .start();
+
     // return [tween0];
 
-    let tweens = [tween0];
+    let tweens = [tween0, tween2];
     chromosomes.forEach((chromosome, index) => {
       const obj = {
         px: chromosome.position[0],
