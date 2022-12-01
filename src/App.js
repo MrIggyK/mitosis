@@ -117,7 +117,7 @@ class App {
       phase: 'startup',
     };
 
-    this.#setupCellsConfig();
+    this.#resetConfig();
 
     console.log(`three.js r${REVISION}`);
     this.#container = document.querySelector(containerID);
