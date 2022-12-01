@@ -19,11 +19,28 @@ import {
   Line,
   BufferGeometry,
 } from 'three';
-import AssetLoader from './AssetLoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 import { TWEEN } from 'three/addons/libs/tween.module.min.js';
+
+import AssetLoader from './AssetLoader.js';
+
+const PHASE_DISPLAY_NAMES = {
+  interphase: 'I Interfaza',
+  prophase: 'II Profaza',
+  metaphase: 'III Metafaza',
+  anaphase: 'IV Anafaza',
+  telophase: 'V Telofaza',
+};
+
+const PHASE_ORDER = [
+  'interphase',
+  'prophase',
+  'metaphase',
+  'anaphase',
+  'telophase',
+];
 
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 const randomChromosomePos = (bounds) => ((-0.5 + Math.random()) * bounds * 2.0);
@@ -73,15 +90,19 @@ class App {
   #blobs;
   #activeTweens = [];
 
+  #playing = false;
+
+  #nextPhase = 'interphase';
+
   constructor(containerID) {
     this.#gui = new GUI();
 
     this.#config = {
       phaseTimes: {
         interphase: 2.0,
-        prophase: 2.0,
-        metaphase: 2.0,
-        anaphase: 2.0,
+        prophase: 3.0,
+        metaphase: 3.0,
+        anaphase: 3.0,
         telophase: 2.0,
       },
       envTexture: 'QA_03_white.hdr',
@@ -509,7 +530,9 @@ class App {
         cells[0].rotation = [0, 0, obj.rotation];
         cells[1].rotation = [0, 0, -obj.rotation];
       })
-      .onComplete(() => {})
+      .onComplete(() => {
+        this.#playing = false;
+      })
       .start();
 
     return [tween0];
@@ -557,7 +580,9 @@ class App {
         cells[0].nucleus.opacity = obj.nucleusOpacity;
         cells[1].nucleus.opacity = obj.nucleusOpacity;
       })
-      .onComplete(() => {})
+      .onComplete(() => {
+        this.#playing = false;
+      })
       .start();
 
     return [tween0, tween1, tween2];
@@ -577,7 +602,9 @@ class App {
         cells[0].spindlesLength = obj0.spindlesLength;
         cells[1].spindlesLength = obj0.spindlesLength;
       })
-      .onComplete(() => {})
+      .onComplete(() => {
+        this.#playing = false;
+      })
       .start();
 
     let tweens = [tween0];
@@ -635,7 +662,9 @@ class App {
         .onUpdate(() => {
           chromosome.offset = [obj.ox, obj.oy, obj.oz];
         })
-        .onComplete(() => {})
+        .onComplete(() => {
+          this.#playing = false;
+        })
         .start();
       tweens = [...tweens, tween];
     });
@@ -656,14 +685,16 @@ class App {
 
     const tween1 = new TWEEN.Tween(obj)
       .to({
-        position: 0.3,
+        position: 0.25,
       }, time)
       .easing(TWEEN.Easing.Quadratic.Out)
       .onUpdate(() => {
         cells[0].position = [obj.position, 0, 0];
         cells[1].position = [-obj.position, 0, 0];
       })
-      .onComplete(() => {});
+      .onComplete(() => {
+        this.#playing = false;
+      });
 
     const tween0 = new TWEEN.Tween(obj)
       .to({
@@ -736,6 +767,13 @@ class App {
   }
 
   #playPhase(name) {
+    if (this.#playing || (this.#nextPhase === null) || this.#nextPhase !== name) {
+      return;
+    }
+
+    const banner = document.querySelector('#banner');
+    banner.innerHTML = `${PHASE_DISPLAY_NAMES[name]}`;
+
     this.#activeTweens.forEach((tween) => {
       tween.stop();
     });
@@ -744,40 +782,56 @@ class App {
     switch (name) {
       case 'interphase':
         phase = this.#playInterphase();
+        this.#nextPhase = 'prophase';
         break;
       case 'prophase':
         phase = this.#playProphase();
+        this.#nextPhase = 'metaphase';
         break;
       case 'metaphase':
         phase = this.#playMetaphase();
+        this.#nextPhase = 'anaphase';
         break;
       case 'anaphase':
         phase = this.#playAnaphase();
+        this.#nextPhase = 'telophase';
         break;
       case 'telophase':
         phase = this.#playTelophase();
+        this.#nextPhase = null;
         break;
       default:
-        phase = this.#playStartup();
+        this.#nextPhase = null;
         break;
     }
 
     this.#activeTweens = phase;
+
+    this.#playing = true;
   }
 
   #setupGUI() {
-    const phasesFolder = this.#gui.addFolder('Phases');
+    // const phasesFolder = this.#gui.addFolder('Faze');
 
     const phasesConfig = {
-      interphase: () => { this.#playPhase('interphase'); },
-      prophase: () => { this.#playPhase('prophase'); },
-      metaphase: () => { this.#playPhase('metaphase'); },
-      anaphase: () => { this.#playPhase('anaphase'); },
-      telophase: () => { this.#playPhase('telophase'); },
+      'Pokreni': () => { this.#playPhase(this.#nextPhase); },
+      'Resetuj': () => {
+        if (this.#playing) {
+          return;
+        }
+        this.#setupCellsConfig();
+        this.#playing = false;
+        this.#nextPhase = 'interphase';
+      },
+      // [`${PHASE_DISPLAY_NAMES['interphase']}`]: () => { this.#playPhase('interphase'); },
+      // [`${PHASE_DISPLAY_NAMES['prophase']}`]: () => { this.#playPhase('prophase'); },
+      // [`${PHASE_DISPLAY_NAMES['metaphase']}`]: () => { this.#playPhase('metaphase'); },
+      // [`${PHASE_DISPLAY_NAMES['anaphase']}`]: () => { this.#playPhase('anaphase'); },
+      // [`${PHASE_DISPLAY_NAMES['telophase']}`]: () => { this.#playPhase('telophase'); },
     };
 
     Object.keys(phasesConfig).forEach((phase) => {
-      phasesFolder.add(phasesConfig, phase);
+      this.#gui.add(phasesConfig, phase);
     });
   }
 }
